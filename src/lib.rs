@@ -64,18 +64,18 @@ mod tests {
     use super::scatter_gather;
 
     /// Test helper
-    fn heavy_test_work(i: u32) -> u32 {
-        (0..1000000000).fold(i, |acc, x| acc.wrapping_add(x))
+    fn do_some_work(i: u32) -> u32 {
+        (0..1000).fold(i, |acc, x| acc.wrapping_add(x))
     }
 
     #[test]
     fn test_parallel_vs_sequential() {
-        let prod_ctor = || (0u32..10000);
-        let xform_ctor = || heavy_test_work;
+        let prod_ctor = || (0u32..100);
+        let xform_ctor = || do_some_work;
         let result_xform = |acc: u32, x| acc.wrapping_add(x);
         let prod = prod_ctor();
         let par_r = scatter_gather(prod_ctor, xform_ctor).fold(0, &result_xform);
-        let seq_r = prod.map(heavy_test_work).fold(0, &result_xform);
+        let seq_r = prod.map(do_some_work).fold(0, &result_xform);
         assert_eq!(par_r, seq_r);
     }
 }
