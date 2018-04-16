@@ -4,4 +4,5 @@ version = "0.1.0"
 authors = ["anderejd <rajder@gmail.com>"]
 
 [dependencies]
-chan = "0.1.18"
+chan = "0.1.21"
+num_cpus = "1.8.0"
