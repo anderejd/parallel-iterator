@@ -34,7 +34,7 @@ where
     let jobs_rx = {
         let (tx, rx) = chan::sync(1);
         thread::spawn(move || {
-            for e in producer_ctor().into_iter() {
+            for e in producer_ctor() {
                 tx.send(e);
             }
         });
