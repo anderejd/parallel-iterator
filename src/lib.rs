@@ -19,7 +19,10 @@ impl<T> Iterator for GatherIter<T> {
 
 /// producer_ctor and xform_ctor is needed to allow construction in the
 /// correct producer / worker thread.
-pub fn scatter_gather<PC, XC, P, X, J, R>(producer_ctor: PC, xform_ctor: XC) -> GatherIter<R>
+pub fn scatter_gather<PC, XC, P, X, J, R>(
+    producer_ctor: PC,
+    xform_ctor: XC,
+) -> GatherIter<R>
 where
     PC: 'static + Send + FnOnce() -> P,
     XC: 'static + Send + Sync + Fn() -> X,
@@ -74,7 +77,8 @@ mod tests {
         let xform_ctor = || do_some_work;
         let result_xform = |acc: u32, x| acc.wrapping_add(x);
         let prod = prod_ctor();
-        let par_r = scatter_gather(prod_ctor, xform_ctor).fold(0, &result_xform);
+        let par_r =
+            scatter_gather(prod_ctor, xform_ctor).fold(0, &result_xform);
         let seq_r = prod.map(do_some_work).fold(0, &result_xform);
         assert_eq!(par_r, seq_r);
     }
