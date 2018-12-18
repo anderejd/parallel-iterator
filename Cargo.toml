@@ -1,7 +1,16 @@
 [package]
-name = "sgiter"
-version = "0.1.0"
 authors = ["anderejd <rajder@gmail.com>"]
+categories = ["concurrency"]
+description = "Parallelize any iterator with ease!"
+keywords = ["parallel", "iterator", "threads"]
+license = "Apache-2.0/MIT"
+name = "parallel-iterator"
+readme = "README.md"
+repository = "https://github.com/anderejd/parallel-iterator"
+version = "0.1.0"
+
+[badges]
+maintenance = { status = "experimental" }
 
 [dependencies]
 chan = "0.1.21"

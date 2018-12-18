@@ -1,4 +1,5 @@
 #![deny(warnings)]
+#![forbid(unsafe_code)]
 
 extern crate chan;
 extern crate num_cpus;
@@ -7,64 +8,106 @@ use std::marker::Send;
 use std::marker::Sync;
 use std::sync::Arc;
 use std::thread;
+use std::thread::JoinHandle;
 
-/// The purpose of this newtype is to hide the channel.
-pub struct GatherIter<T>(chan::Iter<T>);
-impl<T> Iterator for GatherIter<T> {
-    type Item = T;
-    fn next(&mut self) -> Option<T> {
-        self.0.next()
+/// <O> The type returned by the Iterator::next method.
+pub struct ParallelIterator<O> {
+    channel: chan::Iter<O>,
+    threads: Vec<JoinHandle<()>>,
+}
+
+impl<O> ParallelIterator<O> {
+    /// <PC> Producer Constructor. Enables usage of !Send and !Sync objects in the
+    /// producer function.
+    ///
+    /// <XC> Xform Constructor. Enables usage of !Send and !Sync objects in the
+    /// producer function. This can be useful for thread local caches and re-using
+    /// large allocations between different tasks, packaged as a closure.
+    ///
+    /// <P> Producer iterator. Consumed internally by the transform/worker threads.
+    ///
+    /// <X> Xform closure. Applied to each job item produced by the producer
+    /// iterator, in parallel by multiple worker threads.
+    ///
+    /// <I> Input item. Or task, produced by the producer iterator, transformed
+    /// by the Xform closures.
+    ///
+    /// <O> Output item. Returned by the Xform closure(s) and by the
+    /// Iterator::next method.
+    ///
+    pub fn new<PC, XC, P, X, I>(
+        producer_ctor: PC,
+        xform_ctor: XC,
+    ) -> Self
+    where
+        PC: 'static + Send + FnOnce() -> P,
+        XC: 'static + Send + Sync + Fn() -> X,
+        X: FnMut(I) -> O,
+        I: 'static + Send,
+        O: 'static + Send,
+        P: IntoIterator<Item = I>,
+    {
+        let mut threads = vec![];
+        let jobs_rx = {
+            let (tx, rx) = chan::sync(1);
+            let join_handle = thread::spawn(move || {
+                for e in producer_ctor() {
+                    tx.send(e);
+                }
+            });
+            threads.push(join_handle);
+            rx
+        };
+        let results_rx = {
+            let (tx, rx) = chan::sync(1);
+            let xform_ctor = Arc::new(xform_ctor);
+            for _ in 0..num_cpus::get() {
+                let tx = tx.clone();
+                let jobs_rx = jobs_rx.clone();
+                let xform_ctor = xform_ctor.clone();
+                let join_handle = thread::spawn(move || {
+                    let mut xform = xform_ctor();
+                    for e in jobs_rx {
+                        tx.send(xform(e));
+                    }
+                });
+                threads.push(join_handle);
+            }
+            rx
+        };
+        Self { 
+            channel: results_rx.iter(),
+            threads,
+        }
+    }
+
+    fn join_threads(&mut self)
+    {
+        while let Some(join_handle) = self.threads.pop() {
+            // Using expect() here since trying to get the inner panic message
+            // in a typesafe way is not possible?
+            join_handle
+                .join()
+                .expect("A child thread has paniced.");
+        }
     }
 }
 
-/// producer_ctor and xform_ctor is needed to allow construction in the
-/// correct producer / worker thread.
-pub fn scatter_gather<PC, XC, P, X, J, R>(
-    producer_ctor: PC,
-    xform_ctor: XC,
-) -> GatherIter<R>
-where
-    PC: 'static + Send + FnOnce() -> P,
-    XC: 'static + Send + Sync + Fn() -> X,
-    X: FnMut(J) -> R,
-    J: 'static + Send,
-    R: 'static + Send,
-    P: IntoIterator<Item = J>,
-{
-    let jobs_rx = {
-        let (tx, rx) = chan::sync(1);
-        thread::spawn(move || {
-            for e in producer_ctor() {
-                tx.send(e);
-            }
-        });
-        rx
-    };
-    let results_rx = {
-        let (tx, rx) = chan::sync(1);
-
-        // TODO: Learn how to use lifetimes to get rid of this Arc.
-        let xform_ctor = Arc::new(xform_ctor);
-
-        for _ in 0..num_cpus::get() {
-            let tx = tx.clone();
-            let jobs_rx = jobs_rx.clone();
-            let xform_ctor = xform_ctor.clone();
-            thread::spawn(move || {
-                let mut xform = xform_ctor();
-                for e in jobs_rx {
-                    tx.send(xform(e));
-                }
-            });
+impl<T> Iterator for ParallelIterator<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        let item = self.channel.next();
+        if item.is_some() {
+            return item;
         }
-        rx
-    };
-    GatherIter(results_rx.iter())
+        self.join_threads();
+        item // Should always be None here.
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::scatter_gather;
+    use super::ParallelIterator;
 
     /// Test helper
     fn do_some_work(i: u32) -> u32 {
@@ -77,8 +120,7 @@ mod tests {
         let xform_ctor = || do_some_work;
         let result_xform = |acc: u32, x| acc.wrapping_add(x);
         let prod = prod_ctor();
-        let par_r =
-            scatter_gather(prod_ctor, xform_ctor).fold(0, &result_xform);
+        let par_r = ParallelIterator::new(prod_ctor, xform_ctor).fold(0, &result_xform);
         let seq_r = prod.map(do_some_work).fold(0, &result_xform);
         assert_eq!(par_r, seq_r);
     }
