@@ -40,7 +40,7 @@ dependencies = [
 
 [[package]]
 name = "parallel-iterator"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chan 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
