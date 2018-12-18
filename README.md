@@ -3,7 +3,9 @@ parallel-iterator
 
 Parallelize any iterator!
 
-Features:
+Features
+--------
+
  - Support for !Send and !Sync for producer iterators and transform closures.
    This allows safe and easy thread local data, using the captured closure
    environments.
@@ -11,7 +13,9 @@ Features:
  - Internal thread handling, don't worry about it! (TODO: make this
    configurable)
 
-A minimal example:
+A minimal example
+-----------------
+
 ```rust
 extern crate parallel_iterator;
 
@@ -27,3 +31,15 @@ fn main() {
     }
 }
 ```
+
+Changelog
+---------
+
+### 0.1.2
+ - Updated dependencies.
+
+### 0.1.1
+ - Removed dead code in the minimal example.
+
+### 0.1.0
+ - Initial publish.
