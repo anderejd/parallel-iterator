@@ -22,7 +22,6 @@ fn do_some_work(i: u32) -> u32 {
 }
 
 fn main() {
-    let result_xform = |acc: u32, x| acc.wrapping_add(x);
     for i in ParallelIterator::new(|| (0u32..100), || do_some_work) {
     	println!("Got a result: {}!", i);
     }
