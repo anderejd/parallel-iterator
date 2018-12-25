@@ -4,12 +4,12 @@
 extern crate crossbeam_channel;
 extern crate num_cpus;
 
+use crossbeam_channel::bounded;
 use std::marker::Send;
 use std::marker::Sync;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use crossbeam_channel::bounded;
 
 /// <O> The type returned by the Iterator::next method.
 pub struct ParallelIterator<O> {
@@ -17,7 +17,7 @@ pub struct ParallelIterator<O> {
     threads: Vec<JoinHandle<()>>,
 }
 
-impl< O> ParallelIterator< O> {
+impl<O> ParallelIterator<O> {
     /// <PC> Producer Constructor. Enables usage of !Send and !Sync objects in the
     /// producer function.
     ///
@@ -36,10 +36,7 @@ impl< O> ParallelIterator< O> {
     /// <O> Output item. Returned by the Xform closure(s) and by the
     /// Iterator::next method.
     ///
-    pub fn new<PC, XC, P, X, I>(
-        producer_ctor: PC,
-        xform_ctor: XC,
-    ) -> Self
+    pub fn new<PC, XC, P, X, I>(producer_ctor: PC, xform_ctor: XC) -> Self
     where
         PC: 'static + Send + FnOnce() -> P,
         XC: 'static + Send + Sync + Fn() -> X,
@@ -74,32 +71,30 @@ impl< O> ParallelIterator< O> {
                         // Using expect here since this is most likely a fatal
                         // error and the panic should propagate to parent
                         // thread.
-                        tx.send(xform(e)).expect("Worker thread failed to send result.");
+                        tx.send(xform(e))
+                            .expect("Worker thread failed to send result.");
                     }
                 });
                 threads.push(join_handle);
             }
             rx
         };
-        Self { 
+        Self {
             channel: results_rx.into_iter(),
             threads,
         }
     }
 
-    fn join_threads(&mut self)
-    {
+    fn join_threads(&mut self) {
         while let Some(join_handle) = self.threads.pop() {
             // Using expect() here since trying to get the inner panic message
             // in a typesafe way is not possible?
-            join_handle
-                .join()
-                .expect("A child thread has paniced.");
+            join_handle.join().expect("A child thread has paniced.");
         }
     }
 }
 
-impl< T> Iterator for ParallelIterator< T> {
+impl<T> Iterator for ParallelIterator<T> {
     type Item = T;
     fn next(&mut self) -> Option<T> {
         let item = self.channel.next();
@@ -126,7 +121,8 @@ mod tests {
         let xform_ctor = || do_some_work;
         let result_xform = |acc: u32, x| acc.wrapping_add(x);
         let prod = prod_ctor();
-        let par_r = ParallelIterator::new(prod_ctor, xform_ctor).fold(0, &result_xform);
+        let par_r =
+            ParallelIterator::new(prod_ctor, xform_ctor).fold(0, &result_xform);
         let seq_r = prod.map(do_some_work).fold(0, &result_xform);
         assert_eq!(par_r, seq_r);
     }
