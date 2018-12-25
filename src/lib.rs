@@ -1,7 +1,7 @@
-#![deny(warnings)]
+#![forbid(warnings)]
 #![forbid(unsafe_code)]
 
-extern crate chan;
+extern crate crossbeam_channel;
 extern crate num_cpus;
 
 use std::marker::Send;
@@ -9,14 +9,15 @@ use std::marker::Sync;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+use crossbeam_channel::bounded;
 
 /// <O> The type returned by the Iterator::next method.
 pub struct ParallelIterator<O> {
-    channel: chan::Iter<O>,
+    channel: crossbeam_channel::IntoIter<O>,
     threads: Vec<JoinHandle<()>>,
 }
 
-impl<O> ParallelIterator<O> {
+impl< O> ParallelIterator< O> {
     /// <PC> Producer Constructor. Enables usage of !Send and !Sync objects in the
     /// producer function.
     ///
@@ -49,17 +50,19 @@ impl<O> ParallelIterator<O> {
     {
         let mut threads = vec![];
         let jobs_rx = {
-            let (tx, rx) = chan::sync(1);
+            let (tx, rx) = bounded(1);
             let join_handle = thread::spawn(move || {
                 for e in producer_ctor() {
-                    tx.send(e);
+                    // Using expect here since this is most likely a fatal error
+                    // and the panic should propagate to parent thread.
+                    tx.send(e).expect("Producer thread failed to send job.");
                 }
             });
             threads.push(join_handle);
             rx
         };
         let results_rx = {
-            let (tx, rx) = chan::sync(1);
+            let (tx, rx) = bounded(1);
             let xform_ctor = Arc::new(xform_ctor);
             for _ in 0..num_cpus::get() {
                 let tx = tx.clone();
@@ -68,7 +71,10 @@ impl<O> ParallelIterator<O> {
                 let join_handle = thread::spawn(move || {
                     let mut xform = xform_ctor();
                     for e in jobs_rx {
-                        tx.send(xform(e));
+                        // Using expect here since this is most likely a fatal
+                        // error and the panic should propagate to parent
+                        // thread.
+                        tx.send(xform(e)).expect("Worker thread failed to send result.");
                     }
                 });
                 threads.push(join_handle);
@@ -76,7 +82,7 @@ impl<O> ParallelIterator<O> {
             rx
         };
         Self { 
-            channel: results_rx.iter(),
+            channel: results_rx.into_iter(),
             threads,
         }
     }
@@ -93,7 +99,7 @@ impl<O> ParallelIterator<O> {
     }
 }
 
-impl<T> Iterator for ParallelIterator<T> {
+impl< T> Iterator for ParallelIterator< T> {
     type Item = T;
     fn next(&mut self) -> Option<T> {
         let item = self.channel.next();
