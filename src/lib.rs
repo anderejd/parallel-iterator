@@ -11,7 +11,6 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
-/// <O> The type returned by the Iterator::next method.
 pub struct ParallelIterator<O> {
     channel: crossbeam_channel::IntoIter<O>,
     threads: Vec<JoinHandle<()>>,
