@@ -16,13 +16,15 @@ Features
 A minimal example
 -----------------
 
+This code is copy-pasted from `examples/example_1.rs`.
+
 ```rust
 extern crate parallel_iterator;
 
 use parallel_iterator::ParallelIterator;
 
 fn do_some_work(i: u32) -> u32 {
-    (0..1000).fold(i, |acc, x| acc.wrapping_add(x))
+    i + 1 // let's pretend this is a heavy calculation
 }
 
 fn main() {
@@ -32,8 +34,51 @@ fn main() {
 }
 ```
 
+
+A _slightly_ more realistic example
+-----------------------------------
+
+This code is copy-pasted from `examples/example_2.rs`.
+
+```rust
+extern crate parallel_iterator;
+
+use parallel_iterator::ParallelIterator;
+
+fn do_some_work(i: usize, out: &mut Vec<usize>) {
+    for j in 0..i {
+        out.push(j); // The caller can pre-allocate.
+    }
+}
+
+fn main() {
+    const MAX: usize = 1000;
+    let xform_ctor = || {
+        let mut buffer = Vec::with_capacity(MAX);
+        move |i| {
+            buffer.clear(); // Clear but keep the internal allocation.
+            do_some_work(i, &mut buffer);
+            buffer.last().map(|u| *u) // This is just an example value.
+        }
+    };
+    for i in ParallelIterator::new(|| (0..MAX), xform_ctor) {
+        match i {
+            Some(i) => println!("Got Some({})!", i),
+            None => println!("Got None!"),
+        }
+    }
+}
+```
+
+Please see the documentation on the ParallelIterator struct for more details.
+
 Changelog
 ---------
+
+### 0.1.4
+ - Added examples.
+ - Improved documentation.
+ - Updated dependencies.
 
 ### 0.1.3
  - Switched to crossbeam-channel instead of chan.

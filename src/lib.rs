@@ -1,3 +1,65 @@
+//! parallel-iterator
+//! =================
+//!
+//! A minimal example
+//! -----------------
+//!
+//! This code is copy-pasted from `examples/example_1.rs`.
+//!
+//! ```rust
+//! extern crate parallel_iterator;
+//!
+//! use parallel_iterator::ParallelIterator;
+//!
+//! fn do_some_work(i: u32) -> u32 {
+//!     i + 1 // let's pretend this is a heavy calculation
+//! }
+//!
+//! fn main() {
+//!     for i in ParallelIterator::new(|| (0u32..100), || do_some_work) {
+//!     	println!("Got a result: {}!", i);
+//!     }
+//! }
+//! ```
+//!
+//!
+//! A _slightly_ more realistic example
+//! -----------------------------------
+//!
+//! This code is copy-pasted from `examples/example_2.rs`.
+//!
+//! ```rust
+//! extern crate parallel_iterator;
+//!
+//! use parallel_iterator::ParallelIterator;
+//!
+//! fn do_some_work(i: usize, out: &mut Vec<usize>) {
+//!     for j in 0..i {
+//!         out.push(j); // The caller can pre-allocate.
+//!     }
+//! }
+//!
+//! fn main() {
+//!     const MAX: usize = 1000;
+//!     let xform_ctor = || {
+//!         let mut buffer = Vec::with_capacity(MAX);
+//!         move |i| {
+//!             buffer.clear(); // Clear but keep the internal allocation.
+//!             do_some_work(i, &mut buffer);
+//!             buffer.last().map(|u| *u) // This is just an example value.
+//!         }
+//!     };
+//!     for i in ParallelIterator::new(|| (0..MAX), xform_ctor) {
+//!         match i {
+//!             Some(i) => println!("Got Some({})!", i),
+//!             None => println!("Got None!"),
+//!         }
+//!     }
+//! }
+//! ```
+//!
+//! Please see the documentation on the ParallelIterator struct for more details.
+
 #![forbid(warnings)]
 #![forbid(unsafe_code)]
 
@@ -17,22 +79,27 @@ pub struct ParallelIterator<O> {
 }
 
 impl<O> ParallelIterator<O> {
-    /// <PC> Producer Constructor. Enables usage of !Send and !Sync objects in the
-    /// producer function.
+    /// * `PC` - Producer Constructor. Enables usage of !Send and !Sync objects
+    /// in the producer function.
     ///
-    /// <XC> Xform Constructor. Enables usage of !Send and !Sync objects in the
-    /// producer function. This can be useful for thread local caches and re-using
-    /// large allocations between different tasks, packaged as a closure.
+    /// * `XC` - Xform Constructor. Enables usage of !Send and !Sync objects in
+    /// the producer function. This can be useful for thread local caches and
+    /// re-using large allocations between different tasks, packaged as a
+    /// closure.
     ///
-    /// <P> Producer iterator. Consumed internally by the transform/worker threads.
+    /// * `P` - Producer iterator. Consumed internally by the transform/worker
+    /// threads.
     ///
-    /// <X> Xform closure. Applied to each job item produced by the producer
-    /// iterator, in parallel by multiple worker threads.
+    /// * `X` - Xform closure. Applied to each job item produced by the producer
+    /// iterator, in parallel by multiple worker threads. This can be `FnMut`
+    /// since it's owned by a dedicated worker thread and will never be called
+    /// by some other thread. The closure can safely store and reuse mutable
+    /// resources between job items, for example large memory allocations.
     ///
-    /// <I> Input item. Or task, produced by the producer iterator, transformed
-    /// by the Xform closures.
+    /// * `I` - Input item. Or task, produced by the producer iterator,
+    /// transformed by the Xform closures.
     ///
-    /// <O> Output item. Returned by the Xform closure(s) and by the
+    /// * `O` - Output item. Returned by the Xform closure(s) and by the
     /// Iterator::next method.
     ///
     pub fn new<PC, XC, P, X, I>(producer_ctor: PC, xform_ctor: XC) -> Self
