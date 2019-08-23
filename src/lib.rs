@@ -82,10 +82,10 @@ impl<O> ParallelIterator<O> {
     /// * `PC` - Producer Constructor. Enables usage of !Send and !Sync objects
     /// in the producer function.
     ///
-    /// * `XC` - Xform Constructor. Enables usage of !Send and !Sync objects in
-    /// the producer function. This can be useful for thread local caches and
-    /// re-using large allocations between different tasks, packaged as a
-    /// closure.
+    /// * `XC` - Xform (closure) Constructor. Enables usage of !Send and !Sync 
+    /// objects in the transform closure. This can be used for creating thread 
+    /// local caches, like large allocations re-used by different tasks, 
+    /// packaged as a closure.
     ///
     /// * `P` - Producer iterator. Consumed internally by the transform/worker
     /// threads.
@@ -135,7 +135,7 @@ impl<O> ParallelIterator<O> {
                     let mut xform = xform_ctor();
                     for e in jobs_rx {
                         // Using expect here since this is most likely a fatal
-                        // error and the panic should propagate to parent
+                        // error and the panic should propagate to the parent
                         // thread.
                         tx.send(xform(e))
                             .expect("Worker thread failed to send result.");
