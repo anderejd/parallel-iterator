@@ -42,7 +42,7 @@ dependencies = [
 
 [[package]]
 name = "parallel-iterator"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "crossbeam-channel 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
