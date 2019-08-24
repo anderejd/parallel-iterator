@@ -77,6 +77,9 @@ Please see the documentation on the ParallelIterator struct for more details.
 Changelog
 ---------
 
+### 0.1.5
+ - Updated dependencies.
+
 ### 0.1.4
  - Added examples.
  - Improved documentation.
